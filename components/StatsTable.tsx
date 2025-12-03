@@ -1,6 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { EnrichedChangeLog, LifespanInterval } from '../types';
-import { Clock, AlertTriangle, CheckCircle, ArrowRight, Download, ChevronLeft, ChevronRight, Activity, Calendar, Layers, List as ListIcon, Zap, ZapOff, Signal, SignalLow, Smartphone, Cpu, ChevronDown, ChevronUp, History, Hourglass } from 'lucide-react';
+import { 
+  Clock, AlertTriangle, CheckCircle, ArrowRight, Download, ChevronLeft, ChevronRight, 
+  Activity, Calendar, Layers, List as ListIcon, Zap, ZapOff, Signal, SignalLow, 
+  Smartphone, Cpu, ChevronDown, ChevronUp, History, Hourglass
+} from 'lucide-react';
 
 interface AnalysisViewProps {
   changeLogs: EnrichedChangeLog[];
@@ -39,97 +43,68 @@ const formatLifespan = (seconds: number | null) => {
     return `${hours}h`;
 };
 
-// --- Forensic Badges ---
-
-const PowerBadge: React.FC<{ log: EnrichedChangeLog }> = ({ log }) => {
+// --- NUEVO COMPONENTE: Telemetría Específica del Dispositivo ---
+const DeviceLastBreath: React.FC<{ log: EnrichedChangeLog }> = ({ log }) => {
     const pwr = log.last?.pwr_ext;
-    
-    if (log.isPowerCut) {
-         return (
-             <div className="flex items-center gap-1.5 text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100" title={`Voltage Drop detected: ${pwr}V before swap`}>
-                 <ZapOff className="w-3 h-3" />
-                 <span className="text-xs font-bold">Cut ({pwr}V)</span>
-             </div>
-         );
-    }
-    
-    if (typeof pwr === 'number') {
-        return (
-            <div className="flex items-center gap-1.5 text-slate-500" title={`Stable Voltage: ${pwr}V`}>
-                <Zap className="w-3 h-3 text-emerald-500" />
-                <span className="text-xs font-mono">{pwr}V</span>
-            </div>
-        );
-    }
-    return <span className="text-slate-300">-</span>;
-};
-
-const SimBadge: React.FC<{ log: EnrichedChangeLog }> = ({ log }) => {
-    if (log.isSimChange) {
-        return (
-            <div className="flex items-center gap-1.5 text-indigo-600 bg-indigo-50 px-2 py-1 rounded border border-indigo-100" title="SIM Card ICCID Changed">
-                <Cpu className="w-3 h-3" />
-                <span className="text-xs font-bold">New SIM</span>
-            </div>
-        );
-    }
-    if (log.derivedIccid) {
-         return (
-            <div className="flex items-center gap-1.5 text-slate-500" title="Hardware swap only (Same SIM)">
-                <Smartphone className="w-3 h-3 text-slate-400" />
-                <span className="text-xs">Same SIM</span>
-            </div>
-        );
-    }
-    return null;
-};
-
-const SignalBadge: React.FC<{ log: EnrichedChangeLog }> = ({ log }) => {
     const gsm = log.last?.gsm;
-    if (log.isLowSignal) {
-         return (
-            <div className="flex items-center gap-1 text-amber-600" title={`Weak Signal detected (${gsm}). Possible Jamming or Deadzone.`}>
-                <SignalLow className="w-3 h-3" />
-                <span className="text-xs font-mono">{gsm}</span>
-            </div>
-        );
-    }
-    if (typeof gsm === 'number') {
-         return (
-            <div className="flex items-center gap-1 text-slate-400" title={`GSM Signal: ${gsm}`}>
-                <Signal className="w-3 h-3" />
-                <span className="text-xs font-mono">{gsm}</span>
-            </div>
-        );
-    }
-    return null;
+    const isCut = log.isPowerCut;
+
+    // Si no hay datos de "last", no mostramos nada
+    if (pwr === undefined && gsm === undefined) return null;
+
+    return (
+        <div className="flex items-center gap-2 mt-1 justify-end">
+            {/* Voltage Indicator */}
+            {pwr !== undefined && pwr !== null && (
+                <div 
+                    className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+                        isCut 
+                        ? 'bg-red-50 text-red-700 border-red-200 font-bold' 
+                        : 'bg-slate-50 text-slate-500 border-slate-200 font-mono'
+                    }`}
+                    title={isCut ? "CRITICAL: Power cut detected before disconnect" : "Last known voltage"}
+                >
+                    {isCut ? <ZapOff className="w-3 h-3" /> : <Zap className="w-3 h-3 text-emerald-500" />}
+                    <span>{pwr}V</span>
+                </div>
+            )}
+
+            {/* GSM Indicator */}
+            {gsm !== undefined && gsm !== null && (
+                <div 
+                    className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+                        gsm < 10 
+                        ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                        : 'bg-slate-50 text-slate-500 border-slate-200 font-mono'
+                    }`}
+                    title={`GSM Signal Strength: ${gsm}`}
+                >
+                    {gsm < 10 ? <SignalLow className="w-3 h-3" /> : <Signal className="w-3 h-3 text-blue-400" />}
+                    <span>{gsm}</span>
+                </div>
+            )}
+        </div>
+    );
 };
 
-
+// --- Risk Badges (Downtime) ---
 const RiskBadge: React.FC<{ log: EnrichedChangeLog }> = ({ log }) => {
     const seconds = log.downtime_seconds;
+    let tooltip = "Downtime gap between old and new signal";
     
-    let tooltip = "Downtime";
-    if (log.last?.time && log.first_after?.time) {
-        tooltip = `Signal Lost: ${new Date(log.last.time).toLocaleString()}\nSignal Regained: ${new Date(log.first_after.time).toLocaleString()}\nDuration: ${seconds}s`;
-    }
-
-    if (seconds === null) return <span className="text-slate-300 text-xs italic">Unknown Gap</span>;
-    if (seconds > 3600) return <span title={tooltip} className="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 w-fit cursor-help border border-red-200"><AlertTriangle className="w-3 h-3"/> {formatDuration(seconds, true)}</span>;
-    if (seconds > 300) return <span title={tooltip} className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 w-fit cursor-help border border-amber-200"><Clock className="w-3 h-3"/> {formatDuration(seconds, true)}</span>;
-    return <span title={tooltip} className="bg-emerald-50 text-emerald-700 text-xs font-medium px-2 py-1 rounded flex items-center gap-1 w-fit cursor-help border border-emerald-100"><CheckCircle className="w-3 h-3"/> {formatDuration(seconds, true)}</span>;
+    if (seconds === null) return <span className="text-slate-300 text-xs italic">-</span>;
+    if (seconds > 3600) return <span title={tooltip} className="bg-red-50 text-red-700 border border-red-100 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 w-fit"><AlertTriangle className="w-3 h-3"/> {formatDuration(seconds, true)}</span>;
+    if (seconds > 300) return <span title={tooltip} className="bg-amber-50 text-amber-700 border border-amber-100 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 w-fit"><Clock className="w-3 h-3"/> {formatDuration(seconds, true)}</span>;
+    return <span title={tooltip} className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-medium px-2 py-1 rounded flex items-center gap-1 w-fit"><CheckCircle className="w-3 h-3"/> {formatDuration(seconds, true)}</span>;
 };
 
 // --- Sub-Components ---
 
 const GroupedUnitRow: React.FC<{ unidad: string, logs: EnrichedChangeLog[] }> = ({ unidad, logs }) => {
     const [expanded, setExpanded] = useState(false);
-
-    // Group Statistics
     const totalChanges = logs.length;
     const powerCuts = logs.filter(l => l.isPowerCut).length;
-    const simSwaps = logs.filter(l => l.isSimChange).length;
-    const lastEvent = logs[0]; // Assumes sorted desc
+    const lastEvent = logs[0]; 
     
     return (
         <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
@@ -147,27 +122,21 @@ const GroupedUnitRow: React.FC<{ unidad: string, logs: EnrichedChangeLog[] }> = 
                             <span className="text-xs font-mono text-slate-400">#{lastEvent.unit_id}</span>
                         </div>
                         <div className="flex items-center gap-3 text-xs mt-1">
-                            <span className="text-slate-500">{totalChanges} Change Events</span>
+                            <span className="text-slate-500">{totalChanges} events</span>
                             {powerCuts > 0 && (
                                 <span className="flex items-center gap-1 text-red-600 font-bold bg-red-50 px-1.5 py-0.5 rounded border border-red-100">
-                                    <ZapOff className="w-3 h-3" /> {powerCuts} Power Cuts
-                                </span>
-                            )}
-                            {simSwaps > 0 && (
-                                <span className="flex items-center gap-1 text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
-                                    <Cpu className="w-3 h-3" /> {simSwaps} SIM Swaps
+                                    <ZapOff className="w-3 h-3" /> {powerCuts} Power Cuts detected
                                 </span>
                             )}
                         </div>
                     </div>
                 </div>
-
                 <div className="flex items-center gap-6">
                     <div className="text-right hidden sm:block">
                         <div className="text-xs text-slate-400 uppercase font-bold">Latest Event</div>
                         <div className="text-sm font-mono text-slate-700">{new Date(lastEvent.cambio_time).toLocaleDateString()}</div>
                     </div>
-                    {expanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                     {expanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
                 </div>
             </div>
 
@@ -177,63 +146,86 @@ const GroupedUnitRow: React.FC<{ unidad: string, logs: EnrichedChangeLog[] }> = 
                         <table className="w-full text-left text-sm">
                             <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold border-b border-slate-200">
                                 <tr>
-                                    <th className="px-4 py-2">Date</th>
-                                    <th className="px-4 py-2">Transition & Lifespan</th> {/* Header actualizado */}
-                                    <th className="px-4 py-2">Downtime</th>
-                                    <th className="px-4 py-2">Analysis</th>
-                                    <th className="px-4 py-2 text-right">Telemetry</th>
+                                    <th className="px-4 py-2 w-48">Date</th>
+                                    <th className="px-4 py-2 text-center">Transition Analysis</th> {/* Columna Fusionada */}
+                                    <th className="px-4 py-2 w-32">Downtime</th>
+                                    <th className="px-4 py-2 text-right">Extras</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {logs.map(log => (
                                     <tr key={log.id} className="hover:bg-slate-50">
                                         <td className="px-4 py-3 align-top">
-                                            <div className="font-mono text-xs text-slate-700">{new Date(log.cambio_time).toLocaleString()}</div>
+                                            <div className="font-mono text-xs text-slate-700 font-medium">
+                                                {new Date(log.cambio_time).toLocaleDateString()}
+                                            </div>
+                                            <div className="font-mono text-[10px] text-slate-400">
+                                                {new Date(log.cambio_time).toLocaleTimeString()}
+                                            </div>
                                         </td>
                                         
-                                        {/* --- COLUMNA MODIFICADA: TRANSICIÓN A DETALLE --- */}
+                                        {/* --- COLUMNA PRINCIPAL DE TRANSICIÓN --- */}
                                         <td className="px-4 py-3 align-top">
-                                            <div className="flex flex-col gap-2">
-                                                {/* IMEIs */}
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-mono text-xs text-slate-400 line-through" title="Old IMEI">
-                                                        {log.imei_ant ? log.imei_ant.slice(-6) : 'NEW'}
-                                                    </span>
-                                                    <ArrowRight className="w-3 h-3 text-slate-300" />
-                                                    <span className="font-mono text-xs font-bold text-slate-800" title="New IMEI">
-                                                        {log.imei_nuevo.slice(-6)}
-                                                    </span>
-                                                </div>
-
-                                                {/* Lifespan Badge - AHORA MÁS GRANDE Y CLARO */}
-                                                {log.previousImeiLifespanSeconds ? (
-                                                    <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 text-blue-700 px-2 py-1 rounded-md w-fit shadow-sm" title="Time the previous IMEI was active">
-                                                        <Hourglass className="w-3 h-3" />
-                                                        <span className="text-xs font-semibold">
-                                                            Active: {formatDuration(log.previousImeiLifespanSeconds, true)}
+                                            <div className="flex items-start gap-4 justify-center">
+                                                {/* LADO IZQUIERDO: EL "CADÁVER" (IMEI VIEJO + DATOS FORENSES) */}
+                                                <div className="flex flex-col items-end min-w-[140px]">
+                                                    <div className="flex items-center gap-1">
+                                                         <span className="text-[10px] text-slate-400 uppercase tracking-wider">OUT</span>
+                                                         <span className="font-mono text-xs text-slate-500 line-through decoration-red-300 decoration-2" title="Old IMEI Removed">
+                                                            {log.imei_ant ? log.imei_ant.slice(-6) : 'N/A'}
                                                         </span>
                                                     </div>
-                                                ) : (
-                                                    // Si es instalación nueva o no hay dato previo
-                                                    <div className="text-[10px] text-slate-400 italic pl-1">
-                                                        {log.isInstallation ? 'First Installation' : 'No history available'}
+                                                    
+                                                    {/* AQUÍ ESTÁN LOS SENSORES DEL "ÚLTIMO ALIENTO" */}
+                                                    <DeviceLastBreath log={log} />
+                                                    
+                                                    {/* Lifespan Context */}
+                                                    {log.previousImeiLifespanSeconds && (
+                                                        <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-1.5 rounded border border-blue-100" title="Lifespan before removal">
+                                                            <Hourglass className="w-3 h-3" />
+                                                            {formatLifespan(log.previousImeiLifespanSeconds)}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* SEPARADOR CENTRAL */}
+                                                <div className="flex flex-col items-center pt-1">
+                                                    <ArrowRight className="w-4 h-4 text-slate-300" />
+                                                </div>
+
+                                                {/* LADO DERECHO: EL NUEVO DISPOSITIVO */}
+                                                <div className="flex flex-col items-start min-w-[140px]">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="font-mono text-xs text-slate-900 font-bold bg-emerald-50 px-1 rounded text-emerald-800 border border-emerald-100">
+                                                            {log.imei_nuevo.slice(-6)}
+                                                        </span>
+                                                        <span className="text-[10px] text-emerald-600 uppercase tracking-wider font-bold">IN</span>
                                                     </div>
-                                                )}
+                                                    
+                                                    {/* SIM Change Alert */}
+                                                    {log.isSimChange && (
+                                                        <div className="mt-1 flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 px-1.5 rounded border border-indigo-100">
+                                                            <Cpu className="w-3 h-3" />
+                                                            <span>New SIM</span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
-                                        {/* ------------------------------------------------ */}
+                                        {/* -------------------------------------- */}
 
-                                        <td className="px-4 py-3 align-top"><RiskBadge log={log} /></td>
                                         <td className="px-4 py-3 align-top">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <PowerBadge log={log} />
-                                                <SimBadge log={log} />
-                                            </div>
+                                            <RiskBadge log={log} />
                                         </td>
                                         <td className="px-4 py-3 align-top text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <SignalBadge log={log} />
-                                            </div>
+                                            {log.derivedIccid && (
+                                                <div className="text-[10px] font-mono text-slate-400" title={`ICCID: ${log.derivedIccid}`}>
+                                                    SIM..{log.derivedIccid.slice(-4)}
+                                                </div>
+                                            )}
+                                            {log.hasGpsPrecisionIssue && (
+                                                <div className="mt-1 inline-block text-[10px] text-amber-600 border border-amber-200 bg-amber-50 px-1 rounded font-bold">HDOP Alert</div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -345,10 +337,9 @@ const ChangesTable: React.FC<{ data: EnrichedChangeLog[] }> = ({ data }) => {
                                 <tr>
                                     <th className="px-4 py-3">Unit / ID</th>
                                     <th className="px-4 py-3">Event Time</th>
-                                    <th className="px-4 py-3 text-center">IMEI Swap</th>
+                                    <th className="px-4 py-3 text-center">Transition Analysis</th>
                                     <th className="px-4 py-3">Gap (Downtime)</th>
-                                    <th className="px-4 py-3">Audit Flags</th>
-                                    <th className="px-4 py-3 text-right">Telemetry (Last)</th>
+                                    <th className="px-4 py-3 text-right">Extras</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -363,46 +354,55 @@ const ChangesTable: React.FC<{ data: EnrichedChangeLog[] }> = ({ data }) => {
                                             <div className="text-xs text-slate-500 font-mono">{new Date(log.cambio_time).toLocaleTimeString()}</div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center gap-3 justify-center">
-                                                <div className="flex flex-col items-end">
-                                                    <span className="font-mono text-xs text-slate-500 strike-through">{log.imei_ant ? log.imei_ant.slice(-6) : 'NEW'}</span>
+                                             {/* Transition Logic same as GroupedUnitRow */}
+                                             <div className="flex items-start gap-4 justify-center">
+                                                {/* LEFT: Old */}
+                                                <div className="flex flex-col items-end min-w-[120px]">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="font-mono text-xs text-slate-500 line-through decoration-red-300 decoration-2">
+                                                            {log.imei_ant ? log.imei_ant.slice(-6) : 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                    <DeviceLastBreath log={log} />
                                                     {log.previousImeiLifespanSeconds && (
-                                                        <div className="flex items-center gap-1 mt-1" title={`Old IMEI was active for ${formatDuration(log.previousImeiLifespanSeconds)}`}>
-                                                            <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 rounded-full whitespace-nowrap">
-                                                                {formatLifespan(log.previousImeiLifespanSeconds)}
-                                                            </span>
+                                                        <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-1.5 rounded border border-blue-100" title="Lifespan before removal">
+                                                            <Hourglass className="w-3 h-3" />
+                                                            {formatLifespan(log.previousImeiLifespanSeconds)}
                                                         </div>
                                                     )}
                                                 </div>
-                                                <ArrowRight className="w-3 h-3 text-slate-300" />
-                                                <div className="flex flex-col items-start">
-                                                    <span className="font-mono text-xs text-slate-900 font-bold">{log.imei_nuevo.slice(-6)}</span>
-                                                    {/* Spacer to align arrow */}
-                                                    {log.previousImeiLifespanSeconds && <div className="h-4"></div>}
+                                                {/* CENTER */}
+                                                 <div className="flex flex-col items-center pt-1">
+                                                    <ArrowRight className="w-4 h-4 text-slate-300" />
                                                 </div>
-                                            </div>
+                                                {/* RIGHT: New */}
+                                                <div className="flex flex-col items-start min-w-[120px]">
+                                                     <div className="flex items-center gap-1">
+                                                        <span className="font-mono text-xs text-slate-900 font-bold bg-emerald-50 px-1 rounded text-emerald-800 border border-emerald-100">
+                                                            {log.imei_nuevo.slice(-6)}
+                                                        </span>
+                                                    </div>
+                                                    {log.isSimChange && (
+                                                        <div className="mt-1 flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 px-1.5 rounded border border-indigo-100">
+                                                            <Cpu className="w-3 h-3" />
+                                                            <span>New SIM</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
                                             <RiskBadge log={log} />
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <PowerBadge log={log} />
-                                                <SimBadge log={log} />
-                                                {log.hasGpsPrecisionIssue && (
-                                                    <span title="Poor GPS Precision (HDOP > 2.5)" className="text-xs text-amber-600 border border-amber-200 bg-amber-50 px-1 rounded font-bold">HDOP</span>
-                                                )}
-                                            </div>
-                                        </td>
                                         <td className="px-4 py-3 text-right">
-                                            <div className="flex justify-end gap-3">
-                                                <SignalBadge log={log} />
-                                                {log.derivedIccid && (
-                                                    <div className="text-xs font-mono text-slate-400" title={`ICCID: ${log.derivedIccid}`}>
-                                                        SIM...{log.derivedIccid.slice(-4)}
-                                                    </div>
-                                                )}
-                                            </div>
+                                             {log.derivedIccid && (
+                                                <div className="text-xs font-mono text-slate-400" title={`ICCID: ${log.derivedIccid}`}>
+                                                    SIM..{log.derivedIccid.slice(-4)}
+                                                </div>
+                                            )}
+                                            {log.hasGpsPrecisionIssue && (
+                                                <div className="mt-1 inline-block text-[10px] text-amber-600 border border-amber-200 bg-amber-50 px-1 rounded font-bold">HDOP Alert</div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
