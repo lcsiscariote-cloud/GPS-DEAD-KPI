@@ -1,0 +1,5 @@
+{
+  "name": "IMEI Tracker & Analyzer",
+  "description": "A dashboard to analyze unit IMEI changes, calculate lifespan, and visualize the last known location before changes on a map.",
+  "requestFramePermissions": []
+}
