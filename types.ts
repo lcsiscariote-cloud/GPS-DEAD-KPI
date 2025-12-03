@@ -1,4 +1,5 @@
 
+
 export interface LocationData {
     ts?: number;
     time?: string;
@@ -45,6 +46,9 @@ export interface LocationData {
     isSimChange: boolean; // ICCID changed between last and first_after
     isLowSignal: boolean; // Low GSM before swap (jamming potential)
     hasGpsPrecisionIssue: boolean; // High HDOP
+
+    // New field: Lifespan of the previous IMEI before this change event
+    previousImeiLifespanSeconds: number | null;
   }
 
   // Used for the Lifespan Tab

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { EnrichedChangeLog, LifespanInterval } from '../types';
 import { Clock, AlertTriangle, CheckCircle, ArrowRight, Download, ChevronLeft, ChevronRight, Activity, Calendar, Layers, List as ListIcon, Zap, ZapOff, Signal, SignalLow, Smartphone, Cpu, ChevronDown, ChevronUp, History } from 'lucide-react';
@@ -29,6 +30,15 @@ const formatDuration = (seconds: number | null, compact = false) => {
     if (minutes > 0) parts.push(`${minutes}m`);
     if (parts.length === 0) parts.push(`${seconds}s`);
     return parts.join(' ');
+};
+
+const formatLifespan = (seconds: number | null) => {
+    if (!seconds) return null;
+    const days = Math.floor(seconds / (3600 * 24));
+    if (days > 365) return `${(days / 365).toFixed(1)}y`;
+    if (days > 0) return `${days}d`;
+    const hours = Math.floor(seconds / 3600);
+    return `${hours}h`;
 };
 
 // --- Forensic Badges ---
@@ -184,7 +194,14 @@ const GroupedUnitRow: React.FC<{ unidad: string, logs: EnrichedChangeLog[] }> = 
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
-                                                <span className="font-mono text-xs text-slate-400 strike-through">{log.imei_ant ? log.imei_ant.slice(-6) : 'NEW'}</span>
+                                                <div className="flex flex-col items-end">
+                                                     <span className="font-mono text-xs text-slate-400 strike-through">{log.imei_ant ? log.imei_ant.slice(-6) : 'NEW'}</span>
+                                                     {log.previousImeiLifespanSeconds && (
+                                                        <span className="text-[10px] text-slate-400 bg-slate-100 px-1 rounded">
+                                                            {formatLifespan(log.previousImeiLifespanSeconds)}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <ArrowRight className="w-3 h-3 text-slate-300" />
                                                 <span className="font-mono text-xs font-bold text-slate-700">{log.imei_nuevo.slice(-6)}</span>
                                             </div>
@@ -240,9 +257,11 @@ const ChangesTable: React.FC<{ data: EnrichedChangeLog[] }> = ({ data }) => {
         : data.slice((page - 1) * pageSize, page * pageSize);
 
     const downloadCsv = () => {
-        const headers = ['Unidad', 'ID', 'Date', 'Old IMEI', 'New IMEI', 'Downtime (s)', 'Is Power Cut', 'Is Sim Swap', 'Voltage', 'Signal', 'ICCID'];
+        const headers = ['Unidad', 'ID', 'Date', 'Old IMEI', 'New IMEI', 'Previous Lifespan (days)', 'Downtime (s)', 'Is Power Cut', 'Is Sim Swap', 'Voltage', 'Signal', 'ICCID'];
         const rows = data.map(d => [
-            d.unidad, d.unit_id, d.cambio_time, d.imei_ant, d.imei_nuevo, d.downtime_seconds || '', 
+            d.unidad, d.unit_id, d.cambio_time, d.imei_ant, d.imei_nuevo, 
+            d.previousImeiLifespanSeconds ? (d.previousImeiLifespanSeconds / 86400).toFixed(2) : '',
+            d.downtime_seconds || '', 
             d.isPowerCut ? 'YES' : 'NO', d.isSimChange ? 'YES' : 'NO', d.last?.pwr_ext || '', d.last?.gsm || '', d.derivedIccid
         ]);
         const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -327,13 +346,22 @@ const ChangesTable: React.FC<{ data: EnrichedChangeLog[] }> = ({ data }) => {
                                             <div className="text-xs text-slate-500 font-mono">{new Date(log.cambio_time).toLocaleTimeString()}</div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2 justify-center">
+                                            <div className="flex items-center gap-3 justify-center">
                                                 <div className="flex flex-col items-end">
-                                                    <span className="font-mono text-xs text-slate-500">{log.imei_ant ? log.imei_ant.slice(-6) : 'NEW'}</span>
+                                                    <span className="font-mono text-xs text-slate-500 strike-through">{log.imei_ant ? log.imei_ant.slice(-6) : 'NEW'}</span>
+                                                    {log.previousImeiLifespanSeconds && (
+                                                        <div className="flex items-center gap-1 mt-1" title={`Old IMEI was active for ${formatDuration(log.previousImeiLifespanSeconds)}`}>
+                                                            <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 rounded-full whitespace-nowrap">
+                                                                {formatLifespan(log.previousImeiLifespanSeconds)}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <ArrowRight className="w-3 h-3 text-slate-300" />
                                                 <div className="flex flex-col items-start">
                                                     <span className="font-mono text-xs text-slate-900 font-bold">{log.imei_nuevo.slice(-6)}</span>
+                                                    {/* Spacer to align arrow */}
+                                                    {log.previousImeiLifespanSeconds && <div className="h-4"></div>}
                                                 </div>
                                             </div>
                                         </td>

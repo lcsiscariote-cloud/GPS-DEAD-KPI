@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useRef } from 'react';
 import { Upload, Database, Map as MapIcon, RefreshCw, AlertCircle, Calendar, Filter, Clock, FileText, PieChart, Layers, PlusCircle, Zap, ZapOff } from 'lucide-react';
 import { ImeiLog, EnrichedChangeLog, UnitHistory, FilterState } from './types';
@@ -68,6 +69,38 @@ function App() {
   // ---------------------------------------------------------------------------
   // PROCESS DATA
   // ---------------------------------------------------------------------------
+
+  // Pre-calculate lifespan from full history before filtering
+  const lifespanMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const tempGroups = new Map<string, ImeiLog[]>();
+
+    // 1. Group by unit
+    rawData.forEach(log => {
+        if (!tempGroups.has(log.unidad)) tempGroups.set(log.unidad, []);
+        tempGroups.get(log.unidad)!.push(log);
+    });
+
+    // 2. Calculate deltas in each group
+    tempGroups.forEach((logs) => {
+        // Sort chronologically ascending
+        logs.sort((a, b) => a.cambio_ts - b.cambio_ts);
+
+        for (let i = 1; i < logs.length; i++) {
+            const current = logs[i];
+            const prev = logs[i - 1];
+            
+            // The time the previous IMEI lived is the diff between current change and previous change
+            const lifespan = current.cambio_ts - prev.cambio_ts;
+            
+            // Use a composite key to retrieve this data later
+            const key = `${current.unidad}-${current.cambio_ts}-${current.imei_nuevo}`;
+            map.set(key, lifespan);
+        }
+    });
+
+    return map;
+  }, [rawData]);
   
   // Calculate unit counts for the "Multiple Changes" filter
   const unitChangeCounts = useMemo(() => {
@@ -165,6 +198,10 @@ function App() {
 
         const isInstallation = !log.imei_ant || log.imei_ant.trim() === '';
 
+        // Retrieve Calculated Lifespan
+        const uniqueKey = `${log.unidad}-${log.cambio_ts}-${log.imei_nuevo}`;
+        const previousLifespan = lifespanMap.get(uniqueKey) || null;
+
         return {
             ...log,
             downtime_seconds: finalDowntime,
@@ -176,10 +213,11 @@ function App() {
             isPowerCut,
             isSimChange,
             isLowSignal,
-            hasGpsPrecisionIssue
+            hasGpsPrecisionIssue,
+            previousImeiLifespanSeconds: previousLifespan
         };
     }).sort((a, b) => b.cambio_ts - a.cambio_ts);
-  }, [filteredLogs]);
+  }, [filteredLogs, lifespanMap]);
 
   // Derived: Lifespan Intervals
   const unitHistories: UnitHistory[] = useMemo(() => {
