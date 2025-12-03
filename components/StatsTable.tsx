@@ -1,8 +1,6 @@
-
-
 import React, { useState, useMemo } from 'react';
 import { EnrichedChangeLog, LifespanInterval } from '../types';
-import { Clock, AlertTriangle, CheckCircle, ArrowRight, Download, ChevronLeft, ChevronRight, Activity, Calendar, Layers, List as ListIcon, Zap, ZapOff, Signal, SignalLow, Smartphone, Cpu, ChevronDown, ChevronUp, History } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle, ArrowRight, Download, ChevronLeft, ChevronRight, Activity, Calendar, Layers, List as ListIcon, Zap, ZapOff, Signal, SignalLow, Smartphone, Cpu, ChevronDown, ChevronUp, History, Hourglass } from 'lucide-react';
 
 interface AnalysisViewProps {
   changeLogs: EnrichedChangeLog[];
@@ -180,7 +178,7 @@ const GroupedUnitRow: React.FC<{ unidad: string, logs: EnrichedChangeLog[] }> = 
                             <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold border-b border-slate-200">
                                 <tr>
                                     <th className="px-4 py-2">Date</th>
-                                    <th className="px-4 py-2">Transition</th>
+                                    <th className="px-4 py-2">Transition & Lifespan</th> {/* Header actualizado */}
                                     <th className="px-4 py-2">Downtime</th>
                                     <th className="px-4 py-2">Analysis</th>
                                     <th className="px-4 py-2 text-right">Telemetry</th>
@@ -189,31 +187,50 @@ const GroupedUnitRow: React.FC<{ unidad: string, logs: EnrichedChangeLog[] }> = 
                             <tbody className="divide-y divide-slate-100">
                                 {logs.map(log => (
                                     <tr key={log.id} className="hover:bg-slate-50">
-                                        <td className="px-4 py-3">
-                                            <div className="font-mono text-xs">{new Date(log.cambio_time).toLocaleString()}</div>
+                                        <td className="px-4 py-3 align-top">
+                                            <div className="font-mono text-xs text-slate-700">{new Date(log.cambio_time).toLocaleString()}</div>
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <div className="flex flex-col items-end">
-                                                     <span className="font-mono text-xs text-slate-400 strike-through">{log.imei_ant ? log.imei_ant.slice(-6) : 'NEW'}</span>
-                                                     {log.previousImeiLifespanSeconds && (
-                                                        <span className="text-[10px] text-slate-400 bg-slate-100 px-1 rounded">
-                                                            {formatLifespan(log.previousImeiLifespanSeconds)}
-                                                        </span>
-                                                    )}
+                                        
+                                        {/* --- COLUMNA MODIFICADA: TRANSICIÓN A DETALLE --- */}
+                                        <td className="px-4 py-3 align-top">
+                                            <div className="flex flex-col gap-2">
+                                                {/* IMEIs */}
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono text-xs text-slate-400 line-through" title="Old IMEI">
+                                                        {log.imei_ant ? log.imei_ant.slice(-6) : 'NEW'}
+                                                    </span>
+                                                    <ArrowRight className="w-3 h-3 text-slate-300" />
+                                                    <span className="font-mono text-xs font-bold text-slate-800" title="New IMEI">
+                                                        {log.imei_nuevo.slice(-6)}
+                                                    </span>
                                                 </div>
-                                                <ArrowRight className="w-3 h-3 text-slate-300" />
-                                                <span className="font-mono text-xs font-bold text-slate-700">{log.imei_nuevo.slice(-6)}</span>
+
+                                                {/* Lifespan Badge - AHORA MÁS GRANDE Y CLARO */}
+                                                {log.previousImeiLifespanSeconds ? (
+                                                    <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 text-blue-700 px-2 py-1 rounded-md w-fit shadow-sm" title="Time the previous IMEI was active">
+                                                        <Hourglass className="w-3 h-3" />
+                                                        <span className="text-xs font-semibold">
+                                                            Active: {formatDuration(log.previousImeiLifespanSeconds, true)}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    // Si es instalación nueva o no hay dato previo
+                                                    <div className="text-[10px] text-slate-400 italic pl-1">
+                                                        {log.isInstallation ? 'First Installation' : 'No history available'}
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3"><RiskBadge log={log} /></td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
+                                        {/* ------------------------------------------------ */}
+
+                                        <td className="px-4 py-3 align-top"><RiskBadge log={log} /></td>
+                                        <td className="px-4 py-3 align-top">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 <PowerBadge log={log} />
                                                 <SimBadge log={log} />
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-right">
+                                        <td className="px-4 py-3 align-top text-right">
                                             <div className="flex justify-end gap-2">
                                                 <SignalBadge log={log} />
                                             </div>
